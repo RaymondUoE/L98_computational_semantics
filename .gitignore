@@ -1,0 +1,7 @@
+deepbank1.1
+ptb
+semlink
+*.pickle
+*.tgz
+projected.json
+*.csv
