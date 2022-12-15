@@ -3,5 +3,6 @@ ptb
 semlink
 *.pickle
 *.tgz
-projected.json
+projected*.json
 *.csv
+same_eds*
