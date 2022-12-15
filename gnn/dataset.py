@@ -1,7 +1,7 @@
 import pandas as pd
 import torch
 import torch_geometric
-from torch_geometric.data import Dataset, Data
+from torch_geometric.data import Dataset, Data, InMemoryDataset
 from torch_geometric.loader import DataLoader
 import numpy as np 
 import os
@@ -9,21 +9,29 @@ import networkx as nx
 import delphin.codecs.eds
 import json
 
+from sklearn.utils import shuffle
+from tqdm import tqdm
+
 print(f"Torch version: {torch.__version__}")
 print(f"Cuda available: {torch.cuda.is_available()}")
+if torch.cuda.is_available():
+    print(f"Cuda version: {torch.version.cuda}")
 print(f"Torch geometric version: {torch_geometric.__version__}")
 
 
 
-class EdsDataset(Dataset):
-    def __init__(self, root, filename, test=False, transform=None, pre_transform=None):
+class EdsDataset(InMemoryDataset):
+    def __init__(self, root, filename, test=False, transform=None, pre_transform=None,pre_filter=None, mode='train'):
         """
         root = Where the dataset should be stored. This folder is split
         into raw_dir (downloaded dataset) and processed_dir (processed data). 
         """
         self.test = test
         self.filename = filename
-        super(EdsDataset, self).__init__(root, transform, pre_transform)
+        self.mode = mode
+        # super(EdsDataset, self).__init__(root, transform, pre_transform)
+        super().__init__(root, transform, pre_transform, pre_filter)
+        self.data, self.slices = torch.load(self.processed_paths[0])
 
 # TODO
     @property
@@ -31,18 +39,26 @@ class EdsDataset(Dataset):
         """ If this file exists in raw_dir, the download is not triggered.
             (The download func. is not implemented here)  
         """
+        # self.filename = ['gnn_data_small.csv']
         return self.filename
 
 # TODO
     @property 
     def processed_file_names(self):
         """ If these files are found in raw_dir, processing is skipped"""
-        self.data = pd.read_csv(self.raw_paths[0]).reset_index()
+        # self.data = pd.read_csv(self.raw_paths[0]).reset_index()
+        # # shuffle the dataframe
+        # self.data = shuffle(self.data, random_state=100)
 
-        if self.test:
-            return [f'data_test_{i}.pt' for i in list(self.data.index)]
-        else:
-            return [f'data_{i}.pt' for i in list(self.data.index)]
+        # return [f'data_{self.mode}_{i}.pt' for i in list(self.data.index)]
+        return ['processed_data_train.pt','processed_data_val.pt','processed_data_test.pt']
+
+        # if self.mode == 'train':
+        #     return [f'data_test_{i}.pt' for i in list(self.data.index)]
+        # if self.test:
+        #     return [f'data_test_{i}.pt' for i in list(self.data.index)]
+        # else:
+        #     return [f'data_{i}.pt' for i in list(self.data.index)]
 
     def download(self):
         pass
@@ -50,28 +66,45 @@ class EdsDataset(Dataset):
 # TODO
     def process(self):
         self.data = pd.read_csv(self.raw_paths[0]).reset_index()
-        data_list = []
+        self.data = shuffle(self.data, random_state=100)
+        self.num_of_data = len(self.data)
+        self.val_index = int(self.num_of_data * 0.8)
+        self.test_index = int(self.num_of_data * 0.9)
+
+        
 
         self.label_dict = self._build_label_dict(list(self.data['fn_frame'].values))
         
 
         # edses = delphin.codecs.eds.loads('\n'.join(list(self.data['eds'].values)))
         # nxes = self._eds_to_networkx_batch(edses)
-        for index, row in self.data.iterrows():
-            eds_str = row['eds']
 
-        # for eds_str in self.data['eds'].values:
-            eds = delphin.codecs.eds.decode(eds_str)
+        print('Processing data...')
+        
+        train_data = self.data[:self.val_index]
+        val_data = self.data[self.val_index:self.test_index]
+        test_data = self.data[self.test_index:]
 
-            nodes, edges, mask = self._eds_to_geograph(eds, row['target_node'])
-            x = torch.stack(nodes).squeeze()
-            edge_index = torch.tensor(edges)
-            data = Data(x=x, 
-                        edge_index=edge_index.t().contiguous(),
-                        mask = torch.tensor(mask),
-                        y = torch.tensor([-1 if not x else self._get_node_label_index(self.label_dict, row['fn_frame']) for x in list(mask)]))
-            data_list.append(data)
+        for i, data_to_be_processed in zip(range(3), [train_data, val_data, test_data]):
+            data_list = []
+            for index, row in tqdm(data_to_be_processed.iterrows(), total=data_to_be_processed.shape[0]):
+                eds_str = row['eds']
 
+            # for eds_str in self.data['eds'].values:
+                eds = delphin.codecs.eds.decode(eds_str)
+
+                nodes, edges, mask = self._eds_to_geograph(eds, row['target_node'])
+                x = torch.stack(nodes).squeeze()
+                edge_index = torch.tensor(edges)
+                data = Data(x=x, 
+                            edge_index=edge_index.t().contiguous(),
+                            mask = torch.tensor(mask),
+                            y = torch.tensor([-1 if not x else self._get_node_label_index(self.label_dict, row['fn_frame']) for x in list(mask)]))
+                data_list.append(data)
+
+            data, slices = self.collate(data_list)
+            # torch.save(data, os.path.join(self.processed_dir, f'data_{self.mode}_{index}.pt'))
+            torch.save((data, slices), self.processed_paths[i])
 
 
 
@@ -158,7 +191,9 @@ class EdsDataset(Dataset):
         for l, ind in zip(unique_labels, range(len(unique_labels))):
             label_dict[l] = ind
 
-        print('Number of node labels: ', len(unique_labels))
+        label_dict['<UNK>'] = len(label_dict)
+
+        print('Number of node labels: ', len(unique_labels) + 1)
         with open('./node_label_dict.json', 'w') as f:
             f.write(json.dumps(label_dict, indent=2))
             f.close()

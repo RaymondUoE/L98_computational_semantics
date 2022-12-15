@@ -6,3 +6,7 @@ semlink
 projected*.json
 *.csv
 same_eds*
+torchData/Cora
+gnn/data
+*/__pycache__
+*/.ipynb_checkpoints
