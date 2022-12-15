@@ -10,3 +10,4 @@ torchData/Cora
 gnn/data
 */__pycache__
 */.ipynb_checkpoints
+*/model

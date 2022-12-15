@@ -4,6 +4,7 @@ import delphin.codecs.eds
 
 import pandas as pd
 
+from sklearn.utils import shuffle
 from utils import *
 
 OUT_MAPPINGS_FILE = './sl_mappings.csv'
@@ -84,6 +85,7 @@ def prepare_gnn():
     print('EDS does not have corresponding node for semlink {} times'.format(node_cannot_be_found))
     print('Clean data points: {}'.format(len(dicts)))
     df = pd.DataFrame(dicts)
+    df = shuffle(df, random_state=100)
     df.to_csv('gnn_data.csv',index=False)
 
     build_node_target_dict(dicts)

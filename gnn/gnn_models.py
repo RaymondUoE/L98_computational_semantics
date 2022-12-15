@@ -9,10 +9,40 @@ import torch_geometric.nn as geom_nn
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 
+class MLPModel(nn.Module):
+
+    def __init__(self, c_in, c_hidden, c_out, num_layers=2, dp_rate=0.1):
+        """
+        Inputs:
+            c_in - Dimension of input features
+            c_hidden - Dimension of hidden features
+            c_out - Dimension of the output features. Usually number of classes in classification
+            num_layers - Number of hidden layers
+            dp_rate - Dropout rate to apply throughout the network
+        """
+        super().__init__()
+        layers = []
+        in_channels, out_channels = c_in, c_hidden
+        for l_idx in range(num_layers-1):
+            layers += [
+                nn.Linear(in_channels, out_channels),
+                nn.ReLU(inplace=True),
+                nn.Dropout(dp_rate)
+            ]
+            in_channels = c_hidden
+        layers += [nn.Linear(in_channels, c_out)]
+        self.layers = nn.Sequential(*layers)
+
+    def forward(self, x, *args, **kwargs):
+        """
+        Inputs:
+            x - Input features per node
+        """
+        return self.layers(x)
 
 class GNNModel(nn.Module):
 
-    def __init__(self, c_in, c_hidden, c_out, num_layers=2, layer_name="GCN", dp_rate=0.1, **kwargs):
+    def __init__(self, c_in, c_hidden, c_out, num_layers=2, gnn_layer=geom_nn.GCNConv, dp_rate=0.1, **kwargs):
         """
         Inputs:
             c_in - Dimension of input features
@@ -24,7 +54,7 @@ class GNNModel(nn.Module):
             kwargs - Additional arguments for the graph layer (e.g. number of heads for GAT)
         """
         super().__init__()
-        gnn_layer = gnn_layer_by_name[layer_name]
+        # gnn_layer = layer
 
         layers = []
         in_channels, out_channels = c_in, c_hidden
@@ -77,14 +107,15 @@ class NodeLevelGNN(pl.LightningModule):
         x = self.model(x, edge_index)
 
         # Only calculate the loss on the nodes corresponding to the mask
-        if mode == "train":
-            mask = data.train_mask
-        elif mode == "val":
-            mask = data.val_mask
-        elif mode == "test":
-            mask = data.test_mask
-        else:
-            assert False, f"Unknown forward mode: {mode}"
+        # if mode == "train":
+        #     mask = data.train_mask
+        # elif mode == "val":
+        #     mask = data.val_mask
+        # elif mode == "test":
+        #     mask = data.test_mask
+        # else:
+        #     assert False, f"Unknown forward mode: {mode}"
+        mask = data.mask
 
         loss = self.loss_module(x[mask], data.y[mask])
         acc = (x[mask].argmax(dim=-1) == data.y[mask]).sum().float() / mask.sum()

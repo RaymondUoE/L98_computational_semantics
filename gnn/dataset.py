@@ -50,7 +50,7 @@ class EdsDataset(InMemoryDataset):
         # # shuffle the dataframe
         # self.data = shuffle(self.data, random_state=100)
 
-        # return [f'data_{self.mode}_{i}.pt' for i in list(self.data.index)]
+        return [f'processed_data_{self.mode}.pt']
         return ['processed_data_train.pt','processed_data_val.pt','processed_data_test.pt']
 
         # if self.mode == 'train':
@@ -66,7 +66,7 @@ class EdsDataset(InMemoryDataset):
 # TODO
     def process(self):
         self.data = pd.read_csv(self.raw_paths[0]).reset_index()
-        self.data = shuffle(self.data, random_state=100)
+        # self.data = shuffle(self.data, random_state=100)
         self.num_of_data = len(self.data)
         self.val_index = int(self.num_of_data * 0.8)
         self.test_index = int(self.num_of_data * 0.9)
@@ -81,30 +81,35 @@ class EdsDataset(InMemoryDataset):
 
         print('Processing data...')
         
-        train_data = self.data[:self.val_index]
-        val_data = self.data[self.val_index:self.test_index]
-        test_data = self.data[self.test_index:]
+        if self.mode == 'train':
+            data_to_be_processed = self.data[:self.val_index]
+        elif self.mode == 'val':
+            data_to_be_processed = self.data[self.val_index:self.test_index]
+        elif self.mode == 'test':
+            data_to_be_processed = self.data[self.test_index:]
+        else:
+            raise Exception('Dataset mode not recognised. train val test')
 
-        for i, data_to_be_processed in zip(range(3), [train_data, val_data, test_data]):
-            data_list = []
-            for index, row in tqdm(data_to_be_processed.iterrows(), total=data_to_be_processed.shape[0]):
-                eds_str = row['eds']
+        # for i, data_to_be_processed in zip(range(3), [train_data, val_data, test_data]):
+        data_list = []
+        for index, row in tqdm(data_to_be_processed.iterrows(), total=data_to_be_processed.shape[0]):
+            eds_str = row['eds']
 
-            # for eds_str in self.data['eds'].values:
-                eds = delphin.codecs.eds.decode(eds_str)
+        # for eds_str in self.data['eds'].values:
+            eds = delphin.codecs.eds.decode(eds_str)
 
-                nodes, edges, mask = self._eds_to_geograph(eds, row['target_node'])
-                x = torch.stack(nodes).squeeze()
-                edge_index = torch.tensor(edges)
-                data = Data(x=x, 
-                            edge_index=edge_index.t().contiguous(),
-                            mask = torch.tensor(mask),
-                            y = torch.tensor([-1 if not x else self._get_node_label_index(self.label_dict, row['fn_frame']) for x in list(mask)]))
-                data_list.append(data)
+            nodes, edges, mask = self._eds_to_geograph(eds, row['target_node'])
+            x = torch.stack(nodes).squeeze()
+            edge_index = torch.tensor(edges)
+            data = Data(x=x, 
+                        edge_index=edge_index.t().contiguous(),
+                        mask = torch.tensor(mask),
+                        y = torch.tensor([-1 if not x else self._get_node_label_index(self.label_dict, row['fn_frame']) for x in list(mask)]))
+            data_list.append(data)
 
-            data, slices = self.collate(data_list)
-            # torch.save(data, os.path.join(self.processed_dir, f'data_{self.mode}_{index}.pt'))
-            torch.save((data, slices), self.processed_paths[i])
+        data, slices = self.collate(data_list)
+        # torch.save(data, os.path.join(self.processed_dir, f'data_{self.mode}_{index}.pt'))
+        torch.save((data, slices), os.path.join(self.processed_dir, f'processed_data_{self.mode}.pt'))
 
 
 
@@ -137,19 +142,19 @@ class EdsDataset(InMemoryDataset):
         return torch.tensor(label, dtype=torch.int64)
 
     def len(self):
-        return self.data.shape[0]
+        return len(self.data)
 
-    def get(self, idx):
-        """ - Equivalent to __getitem__ in pytorch
-            - Is not needed for PyG's InMemoryDataset
-        """
-        if self.test:
-            data = torch.load(os.path.join(self.processed_dir, 
-                                 f'data_test_{idx}.pt'))
-        else:
-            data = torch.load(os.path.join(self.processed_dir, 
-                                 f'data_{idx}.pt'))        
-        return data
+    # def get(self, idx):
+    #     """ - Equivalent to __getitem__ in pytorch
+    #         - Is not needed for PyG's InMemoryDataset
+    #     """
+    #     if self.test:
+    #         data = torch.load(os.path.join(self.processed_dir, 
+    #                              f'data_test_{idx}.pt'))
+    #     else:
+    #         data = torch.load(os.path.join(self.processed_dir, 
+    #                              f'data_{idx}.pt'))        
+    #     return data
 
     def _eds_to_networkx_batch(edses):
         nxes = []
