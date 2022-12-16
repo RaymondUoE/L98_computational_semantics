@@ -30,7 +30,7 @@ class EdsDataset(InMemoryDataset):
         self.filename = filename
         self.mode = mode
         # super(EdsDataset, self).__init__(root, transform, pre_transform)
-        super().__init__(root, transform, pre_transform, pre_filter)
+        super(EdsDataset, self).__init__(root, transform, pre_transform, pre_filter)
         self.data, self.slices = torch.load(self.processed_paths[0])
 
 # TODO
@@ -49,7 +49,7 @@ class EdsDataset(InMemoryDataset):
         # self.data = pd.read_csv(self.raw_paths[0]).reset_index()
         # # shuffle the dataframe
         # self.data = shuffle(self.data, random_state=100)
-
+        # print('Found processed files.')
         return [f'processed_data_{self.mode}.pt']
         return ['processed_data_train.pt','processed_data_val.pt','processed_data_test.pt']
 
@@ -108,35 +108,12 @@ class EdsDataset(InMemoryDataset):
             data_list.append(data)
 
         data, slices = self.collate(data_list)
-        # torch.save(data, os.path.join(self.processed_dir, f'data_{self.mode}_{index}.pt'))
+        # print(len(data))
         torch.save((data, slices), os.path.join(self.processed_dir, f'processed_data_{self.mode}.pt'))
+        # torch.save(data, os.path.join(self.processed_dir, f'processed_data_{self.mode}.pt'))
+        # torch.save(data_list, os.path.join(self.processed_dir, f'processed_data_{self.mode}.pt'))
 
-
-
-            # data = Data(x=node_feats, 
-            #         edge_index=edge_index,
-            #         edge_attr=edge_feats,
-            #         y=label
-            #         # smiles=mol["smiles"]
-            #         ) 
-        # featurizer = dc.feat.MolGraphConvFeaturizer(use_edges=True)
-        # for index, row in tqdm(self.data.iterrows(), total=self.data.shape[0]):
-        #     # Featurize molecule
-        #     mol = Chem.MolFromSmiles(row["smiles"])
-        #     f = featurizer._featurize(mol)
-        #     data = f.to_pyg_graph()
-        #     data.y = self._get_label(row["HIV_active"])
-        #     data.smiles = row["smiles"]
-        #     if self.test:
-        #         torch.save(data, 
-        #             os.path.join(self.processed_dir, 
-        #                          f'data_test_{index}.pt'))
-        #     else:
-        #         torch.save(data, 
-        #             os.path.join(self.processed_dir, 
-        #                          f'data_{index}.pt'))
             
-
     def _get_label(self, label):
         label = np.asarray([label])
         return torch.tensor(label, dtype=torch.int64)
