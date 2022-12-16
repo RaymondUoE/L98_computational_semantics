@@ -83,8 +83,7 @@ def main():
     CLASS_DIM = len(node_label_dict)
     # print('-------------')
     # print(train_datalist[:3])
-    node_gnn_model, node_gnn_result = train_node_classifier(model_name="GNN",
-                                                        layer_name="GCN",
+    node_gnn_model, node_gnn_result = train_node_classifier(model_name='GCN',
                                                         train_dataset=train_datalist,
                                                         val_dataset=val_datalist,
                                                         test_dataset=test_datalist,
