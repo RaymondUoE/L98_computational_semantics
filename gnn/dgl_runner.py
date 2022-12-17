@@ -13,23 +13,17 @@ import joblib
 
 CHECKPOINT_PATH = "./model"
 
-MAX_EPOCH = 50
-BATCH_SIZE = 32
+MAX_EPOCH = 20
+BATCH_SIZE = 2
 
 FEATURE_DIM = 0
 CLASS_DIM = 0
-
+torch.manual_seed(22)
 
 device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
 print(device)
 
 def main():
-    # num_examples = len(dataset)
-    # num_train = int(num_examples * 0.8)
-    
-
-    # train_sampler = SubsetRandomSampler(torch.arange(num_train))
-    # test_sampler = SubsetRandomSampler(torch.arange(num_train, num_examples))
     train_dataset = check_saved_data(mode='train')
     val_dataset = check_saved_data(mode='val')
     test_dataset = check_saved_data(mode='test')
@@ -42,7 +36,7 @@ def main():
                                                         train_dataset=train_dataset,
                                                         val_dataset=val_dataset,
                                                         test_dataset=test_dataset,
-                                                        h_feats=16,
+                                                        h_feats=256,
                                                         num_layers=2,
                                                         dp_rate=0.1)
     print_results(node_gnn_result)
@@ -75,7 +69,7 @@ def train_node_classifier(train_dataset, val_dataset, test_dataset, **model_kwar
     model = NodeLevelGNN.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
 
     # Test best model on the test set
-    model_used_to_predict = model.get_model()
+    model_used_to_predict = model.get_model().to(device)
    
     train_acc = predict(model_used_to_predict, train_dataset)
     val_acc = predict(model_used_to_predict, val_dataset)
@@ -165,20 +159,11 @@ def print_results(result_dict):
 def predict(model, dataset):
     num_correct = 0
     for batched_graph in dataset:
-        # print(batched_graph)
-        # num_of_tests += len(batched_graph)
-        # pred = model.forward(d.x, d.edge_index)
         batched_graph = dgl.add_self_loop(batched_graph)
         batched_features = batched_graph.ndata['feat']
         batched_mask = batched_graph.ndata['mask']
         batched_labels = batched_graph.ndata['label'][batched_mask]
         pred = model.forward(batched_graph, batched_features)[batched_mask]
-        # pred = pred[batched_mask]
-
-
-        # pred = model.forward(d.x, d.edge_index)
-        # pred = pred[batched_mask].argmax(dim=-1)
-        # y = d.y[d.mask]
         pred = pred.argmax(dim=-1)
         num_correct += (pred == batched_labels).sum().item()
         
