@@ -32,7 +32,8 @@ class Featureriser(object):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f'Cuda is available: {torch.cuda.is_available()}')
     print(f'Device: {device}')
-
+    
+    @staticmethod
     def bert_featurerise(edses, sentences):
         # return last hidden layer of bert
         # if not sentences:
@@ -98,7 +99,7 @@ class Featureriser(object):
 
 
 
-    # @staticmethod
+    @staticmethod
     def get_node_span_embedding(eds, sentence, tokens, token_embeddings):
         surface_per_node_dict = Featureriser.eds_nodes_to_surface_char_level(eds, sentence)
         span_embeddings = {}
@@ -114,7 +115,7 @@ class Featureriser(object):
         return span_embeddings
         
 
-    # @staticmethod
+    @staticmethod
     def eds_nodes_to_surface_char_level(eds, sentence):
         surface_per_node = []
         surface_per_node = {}
@@ -132,15 +133,12 @@ class Featureriser(object):
         # sort by starting char
         return dict(sorted(surface_per_node.items(), key=lambda x: int(x[1]['start_char'])))
 
-    # @staticmethod
+    @staticmethod
     def surface_string_to_token_index(string_to_be_matched, tokens, original_string, a, b, match_started=False):
-        # print(string_to_be_matched)
-        # string_to_be_matched = string_to_be_matched.lower()
         if string_to_be_matched == '':
             return a, b
         else:
             if match_started:
-                # start_token = tokens[b].replace('#','')
                 start_token = tokens[b]
                 if not string_to_be_matched.startswith(start_token): #false match
                     return Featureriser.surface_string_to_token_index(original_string, tokens, original_string, a+1, a+2, False)
@@ -148,26 +146,23 @@ class Featureriser(object):
                     return Featureriser.surface_string_to_token_index(string_to_be_matched[len(start_token):].strip(), tokens,original_string, a, b+1, True)
 
             else:
-                # start_token = tokens[a].replace('#','')
                 start_token = tokens[a]
                 if string_to_be_matched.startswith(start_token):
                     return Featureriser.surface_string_to_token_index(string_to_be_matched[len(start_token):].strip(), tokens, original_string, a, b, True)
                 else:
                     return Featureriser.surface_string_to_token_index(string_to_be_matched, tokens, original_string, a+1, b+1, False)
     
+    @staticmethod
     def match_node_spans_with_token_index(node_spans_dict, tokens):
         # node_spans = [x.lower() for x in node_spans]
         tokens = [x[2:] if x[:2] == '##' else x for x in tokens]
         a = 0
-        # node_span_index = []
         
         for node_id, info_dict in node_spans_dict.items():
             cur_span = info_dict['surface'].lower()
             start, finish = Featureriser.surface_string_to_token_index(cur_span, tokens, cur_span, a, a+1)
-            # node_span_index.append((start, finish))
             node_spans_dict[node_id]['token_index'] = (start, finish)
             a = start
-            # print((start, finish))
         return node_spans_dict
 
 

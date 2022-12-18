@@ -50,17 +50,17 @@ class EdsDataset(DGLDataset):
             nodes_embeds = []
             for n in eds.nodes:
                 nodes_embeds.append(node_features_dict[n.id])
-            node_features = torch.cat(nodes_embeds)
+            node_features = torch.cat(nodes_embeds) # node features
             print(node_features.shape)
-            # node_features = self._get_node_features(eds.nodes)
-            edge_features = self._get_edge_features(eds.nodes, eds.edges, node_id_to_idx_dict).to(self.device)
+            
             mask = [False if not target_node == x else True for x in node_id_to_idx_dict.keys()]
     
             node_labels = torch.tensor([-1 if not x else self._get_node_label_index(row['fn_frame']) for x in list(mask)]).to(self.device)
             
             
             edges_src, edges_tgt = self._eds_to_graph(eds, node_id_to_idx_dict)
-            
+            edge_features = self._get_edge_features(edges_src, edges_tgt, nodes_embeds).to(self.device) # edge features
+            print(edge_features.shape)
 
             graph = dgl.graph((edges_src, edges_tgt), num_nodes=len(eds.nodes)).to(self.device)
             graph.ndata['feat'] = node_features
@@ -100,17 +100,22 @@ class EdsDataset(DGLDataset):
         return nodes_to_idx_dict
 
     def _get_node_features(self, nodes):
-        # TODO
+        # out of date, not used, for reference only
         # return |V| x Dv
         torch.manual_seed(22)
 
         return torch.randn([len(nodes), 100],)
     
-    def _get_edge_features(self, nodes, edges, node_id_to_idx_dict):
-        # TODO
+    def _get_edge_features(self, edges_src, edges_tgt, nodes_embeds):
         # return |E| x De
-        torch.manual_seed(22)
-        return torch.randn([len(edges), 50])
+        # torch.manual_seed(22)
+        # return torch.randn([len(edges), 50])
+        edge_features = []
+        for i in range(len(edges_src)):
+            src_embed = nodes_embeds[edges_src[i]]
+            tgt_embed = nodes_embeds[edges_tgt[i]]
+            edge_features.append(torch.cat([src_embed, tgt_embed], dim=1).to(self.device))
+        return torch.cat(edge_features, dim=0).to(self.device)
 
     def _eds_to_graph(self, eds, node_id_to_index_dict):
         

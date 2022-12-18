@@ -36,8 +36,7 @@ def main():
                                                         train_dataset=train_dataset,
                                                         val_dataset=val_dataset,
                                                         test_dataset=test_dataset,
-                                                        h_feats=256,
-                                                        num_layers=2,
+                                                        h_feats=512,
                                                         dp_rate=0.1)
     print_results(node_gnn_result)
 
