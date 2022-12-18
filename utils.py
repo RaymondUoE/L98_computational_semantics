@@ -26,13 +26,13 @@ from nltk.tree import Tree
 #         return None
 
     
-def find_eds_by_ids_df(section_id, doc_id, sentence_id, df):
-    result  = df[(df['section_id'] == section_id) & (df['doc_id'] == doc_id) & (df['sentence_id'] == sentence_id)]
-    if len(result) == 0:
-#         no result found
-        return None
-    else:
-        return result['eds'].values[0]
+# def find_eds_by_ids_df(section_id, doc_id, sentence_id, df):
+#     result  = df[(df['section_id'] == section_id) & (df['doc_id'] == doc_id) & (df['sentence_id'] == sentence_id)]
+#     if len(result) == 0:
+# #         no result found
+#         return None
+#     else:
+#         return result['eds'].values[0]
     # try:
     #     eds = df[(df['section_id'] == section_id) & (df['doc_id'] == doc_id) & (df['sentence_id'] == sentence_id)]['eds'].values[0]
     #     return delphin.codecs.eds.decode(eds)

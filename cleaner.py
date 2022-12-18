@@ -1,6 +1,6 @@
 import sys, getopt
-# import pickle
-import joblib
+import pickle
+# import joblib
 import delphin.codecs.eds
 
 import pandas as pd
@@ -47,7 +47,7 @@ def prepare_gnn():
     print('Loading dataset...')
 
     with open('cleaned_data.pkl', 'rb') as file:
-        cleaned_data = joblib.load(file)
+        cleaned_data = pickle.load(file)
     file.close()
 
     dicts = []
@@ -172,10 +172,10 @@ def clean_data():
     print('Saving...')
     
     with open('cleaned_data.pkl', 'wb') as handle:
-        joblib.dump(cleaned_data, handle)
+        pickle.dump(cleaned_data, handle)
         handle.close()
     with open('error_record.pkl', 'wb') as handle:
-        joblib.dump(error_record, handle)
+        pickle.dump(error_record, handle)
         handle.close()
 
     del sentences

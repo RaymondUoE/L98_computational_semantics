@@ -1,7 +1,7 @@
 deepbank1.1
 ptb
 semlink
-*.pickle
+*.pkl
 *.tgz
 projected*.json
 *.csv
