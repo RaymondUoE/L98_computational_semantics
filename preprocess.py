@@ -37,17 +37,15 @@ def process_semlink():
     for line in tqdm(file, total=len(file)):
         contents = line.split()
         sem_map = {}
-        # sem_map['section_id'] = int(contents[0].split('/')[-2])
-        # sem_map['doc_id'] = 
         sem_map['id'] = '2' + str(contents[0].split('/')[-1].split('_')[1].split('.')[0][-4:]) + str(int(contents[1])+1).zfill(3)
         sem_map['token_id'] = int(contents[2])
-        sem_map['is_gold'] = contents[3]
+        # sem_map['is_gold'] = contents[3]
         sem_map['vb_form'] = contents[4]
-        sem_map['vn_class_index'] = contents[5]
+        # sem_map['vn_class_index'] = contents[5]
         sem_map['fn_frame'] = contents[6]
-        sem_map['pb_sense'] = contents[7]
-        sem_map['not_sure_0'] = contents[8]
-        sem_map['not_sure_1'] = contents[9]
+        # sem_map['pb_sense'] = contents[7]
+        # sem_map['not_sure_0'] = contents[8]
+        # sem_map['not_sure_1'] = contents[9]
         sem_map['augmentations'] = contents[10:]
 
         mappings.append(sem_map)
@@ -73,14 +71,11 @@ def process_deepbank():
                     with open(os.path.join(DEEPBANK_PATH, folder_name, file_name), 'r') as f: # open in readonly mode
                         contents = f.read().split('\n\n')
                         doc = {}
-                        # doc['section_id'] = int(file_name[1:3])
-                        # doc['doc_id'] = int(file_name[3:5])
-                        # doc['sentence_id'] = int(file_name[5:]) - 1
                         doc['id'] = contents[1].split('[', 1)[1].split(']', 1)[0]
                         doc['sentence'] = contents[1].split('`')[1].split('\'')[0]
-                        doc['constituency'] = contents[5]
+                        # doc['constituency'] = contents[5]
                         doc['eds'] = contents[7]
-                        doc['dependency'] = contents[8]
+                        # doc['dependency'] = contents[8]
 
                         docs.append(doc)
                         f.close()
@@ -104,9 +99,7 @@ def process_trees():
                 contents = f.read().split('\n\n')
                 for t, i in zip(contents, range(len(contents))):
                     my_dict = {}
-                    # my_dict['section_id'] = int(section_id)
                     my_dict['id'] = '2' + str(file_name.split('.')[0][-4:]) + str(int(i) + 1).zfill(3)
-                    # my_dict['sentence_id'] = 
                     my_dict['tree'] = t
 
                     trees.append(my_dict)

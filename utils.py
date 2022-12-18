@@ -40,8 +40,8 @@ def find_eds_by_ids_df(section_id, doc_id, sentence_id, df):
     #     return None
 
 
-def find_semlink_by_ids_df(section_id, doc_id, sentence_id, df):
-    result = df[(df['section_id'] == section_id) & (df['doc_id'] == doc_id) & (df['sentence_id'] == sentence_id)]
+def find_df_by_id(idd, df):
+    result = df[df['id'] == idd]
     
     if len(result) == 0:
         return None
@@ -49,18 +49,13 @@ def find_semlink_by_ids_df(section_id, doc_id, sentence_id, df):
         return result.to_dict('records')
 
 
-def find_tree_by_ids_df(section_id, doc_id, sentence_id, df):
-    result = df[(df['section_id'] == section_id) & (df['doc_id'] == doc_id) & (df['sentence_id'] == sentence_id)]
+def find_tree_by_ids_df(idd, df):
+    result = df[df['id'] == idd]
     
     if len(result) == 0:
         return None
     else:
         return Tree.fromstring(result['tree'].values[0])
-    # try:
-    #     tree = df[(df['section_id'] == section_id) & (df['doc_id'] == doc_id) & (df['sentence_id'] == sentence_id)]['tree'].values[0]
-    #     return Tree.fromstring(tree)
-    # except:
-    #     return None
 
 
 def eds_vis(eds, sent=None):

@@ -1,24 +1,18 @@
 import sys, getopt
-import pickle
+# import pickle
+import joblib
 import delphin.codecs.eds
 
 import pandas as pd
 
 from sklearn.utils import shuffle
+from tqdm import tqdm
 from utils import *
-
-OUT_MAPPINGS_FILE = './sl_mappings.csv'
-OUT_SENTENCES_FILE = './sentences.csv'
-OUT_TREE_FILE = './trees.csv'
-
-# FILTER_EDS = True
-# FILTER_SEMLINK = False
-# FILTER_TREE = False
-
-PREPARE_FOR_GNN = False
 
 
 def main(argv):
+
+    PREPARE_FOR_GNN = False
 
     opts, args = getopt.getopt(argv,"hg",["gnn-only"])
     for opt, arg in opts:
@@ -52,8 +46,8 @@ def prepare_gnn():
     # pass
     print('Loading dataset...')
 
-    with open('cleaned_data.pickle', 'rb') as file:
-        cleaned_data = pickle.load(file)
+    with open('cleaned_data.pkl', 'rb') as file:
+        cleaned_data = joblib.load(file)
     file.close()
 
     dicts = []
@@ -98,6 +92,7 @@ def clean_data():
     semlink_map = pd.read_csv('sl_mappings.csv')
     trees = pd.read_csv('trees.csv')
 
+    print(f'Loaded {len(sentences)} EDSes,\n{len(semlink_map)} semlink entries,\n{len(trees)} constituency trees.')
     print('Cleaning data...')
 
     cleaned_data = {}
@@ -108,27 +103,23 @@ def clean_data():
     tree_failure = []
     tree_missing = []
 
-    # find missing eds
+    # find missing eds - ids in semlink but not in eds
     print('Finding missing EDS...')
-    for index, row in semlink_map.iterrows():
-        section_id = row['section_id']
-        doc_id = row['doc_id']
-        sentence_id = row['sentence_id']
-        all_index = str(section_id).zfill(3) + str(doc_id).zfill(3) + str(sentence_id).zfill(3)
-
-        if not find_eds_by_ids_df(section_id, doc_id, sentence_id, sentences):
-            eds_missing.append(all_index)
-    
-    eds_missing = list(set(eds_missing))
+    all_df = semlink_map.drop_duplicates(subset=['id']).merge(sentences.drop_duplicates(), on=['id'], how='left', indicator=True)
+    eds_missing_df = all_df[all_df['_merge'] == 'left_only']
+    del all_df
+    eds_missing = list(eds_missing_df['id'])
+    del eds_missing_df
 
 
 
-    for index, row in sentences.iterrows():
+    for index, row in tqdm(sentences.iterrows(), total=len(sentences)):
         temp_dict = {}
-        section_id = row['section_id']
-        doc_id = row['doc_id']
-        sentence_id = row['sentence_id']
-        all_index = str(section_id).zfill(3) + str(doc_id).zfill(3) + str(sentence_id).zfill(3)
+        # section_id = row['section_id']
+        # doc_id = row['doc_id']
+        # sentence_id = row['sentence_id']
+        # all_index = str(section_id).zfill(3) + str(doc_id).zfill(3) + str(sentence_id).zfill(3)
+        cur_id = row['id']
 
         # filter EDS
         try:
@@ -136,29 +127,29 @@ def clean_data():
             temp_dict['sentence'] = row['sentence']
             temp_dict['eds'] = cur_eds
         except:
-            eds_failure.append(all_index)
+            eds_failure.append(cur_id)
 
         # find semlink:
         try:
-            semlink_result = find_semlink_by_ids_df(section_id,doc_id,sentence_id,semlink_map)
+            semlink_result = find_df_by_id(cur_id ,semlink_map)
             if semlink_result:
                 temp_dict['semlink'] = semlink_result
             else:
-                semlink_missing.append(all_index)
+                semlink_missing.append(cur_id)
         except:
-            semlink_failure.append(all_index)
+            semlink_failure.append(cur_id)
 
         # find tree
         try:
-            tree_result = find_tree_by_ids_df(section_id,doc_id,sentence_id,trees)
+            tree_result = find_tree_by_ids_df(cur_id, trees)
             if tree_result:
                 temp_dict['tree'] = tree_result
             else:
-                tree_missing.append(all_index)
+                tree_missing.append(cur_id)
         except:
-            tree_failure.append(all_index)
+            tree_failure.append(cur_id)
         
-        cleaned_data[all_index] = temp_dict
+        cleaned_data[cur_id] = temp_dict
 
     error_record = {}
     error_record['eds_missing'] = eds_missing
@@ -180,11 +171,11 @@ def clean_data():
 
     print('Saving...')
     
-    with open('cleaned_data.pickle', 'wb') as handle:
-        pickle.dump(cleaned_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    with open('cleaned_data.pkl', 'wb') as handle:
+        joblib.dump(cleaned_data, handle)
         handle.close()
-    with open('error_record.pickle', 'wb') as handle:
-        pickle.dump(error_record, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    with open('error_record.pkl', 'wb') as handle:
+        joblib.dump(error_record, handle)
         handle.close()
 
     del sentences
