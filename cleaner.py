@@ -31,19 +31,18 @@ def main(argv):
 
         clean_data()
 
-def build_node_target_dict(dicts):
-    labels = []
-    for d in dicts:
-        labels.append(d['fn_frame'])
-    labels = list(set(labels))
+# def build_node_target_dict(dicts):
+#     labels = []
+#     for d in dicts:
+#         labels.append(d['fn_frame'])
+#     labels = list(set(labels))
 
-    node_target_dict = {}
-    for l, index in zip(labels, range(len(labels))):
-        node_target_dict[l] = index
-        # TODO
+#     node_target_dict = {}
+#     for l, index in zip(labels, range(len(labels))):
+#         node_target_dict[l] = index
+#         # TODO
 
 def prepare_gnn():
-    # pass
     print('Loading dataset...')
 
     with open('cleaned_data.pkl', 'rb') as file:
@@ -80,9 +79,21 @@ def prepare_gnn():
     print('Clean data points: {}'.format(len(dicts)))
     df = pd.DataFrame(dicts)
     df = shuffle(df, random_state=100)
+    
+    num_of_data = len(df)
+    val_index = int(num_of_data * 0.8)
+    test_index = int(num_of_data * 0.9)
+
+    print('Spliting data...')
+    train_data = df[:val_index]
+    val_data = df[val_index:test_index]
+    test_data = df[test_index:]
+    train_data.to_csv('./gnn/data/raw/gnn_data_dgl_train_small.csv',index=False)
+    val_data.to_csv('./gnn/data/raw/gnn_data_dgl_val_small.csv',index=False)
+    test_data.to_csv('./gnn/data/raw/gnn_data_dgl_test_small.csv',index=False)
     df.to_csv('gnn_data.csv',index=False)
 
-    build_node_target_dict(dicts)
+    # build_node_target_dict(dicts)
 
 
 def clean_data():
@@ -110,10 +121,18 @@ def clean_data():
     del all_df
     eds_missing = list(eds_missing_df['id'])
     del eds_missing_df
+    
+    all_df = semlink_map.merge(sentences, on=['id'], how='outer', indicator=True)
+    eds_missing = list(all_df[all_df['_merge'] == 'left_only'].drop_duplicates(subset=['id'])['id'])
+    semlink_missing = list(all_df[all_df['_merge'] == 'right_only'].drop_duplicates(subset=['id'])['id'])
+    
+    # filtered_ids = [x for x in list(sentences['id']) if not x in semlink_missing]
+    
+    filtered_sentences = sentences[~sentences.id.isin(semlink_missing)]
 
 
-
-    for index, row in tqdm(sentences.iterrows(), total=len(sentences)):
+    # for index, row in tqdm(sentences.iterrows(), total=len(sentences)):
+    for index, row in tqdm(filtered_sentences.iterrows(), total=len(filtered_sentences)):
         temp_dict = {}
         # section_id = row['section_id']
         # doc_id = row['doc_id']
@@ -128,16 +147,18 @@ def clean_data():
             temp_dict['eds'] = cur_eds
         except:
             eds_failure.append(cur_id)
+            # don't add these ids in cleaned datasets
+            continue
 
         # find semlink:
         try:
             semlink_result = find_df_by_id(cur_id ,semlink_map)
             if semlink_result:
                 temp_dict['semlink'] = semlink_result
-            else:
-                semlink_missing.append(cur_id)
+
         except:
             semlink_failure.append(cur_id)
+            continue
 
         # find tree
         try:

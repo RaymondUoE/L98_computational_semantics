@@ -13,8 +13,8 @@ import joblib
 
 CHECKPOINT_PATH = "./model"
 
-MAX_EPOCH = 20
-BATCH_SIZE = 2
+MAX_EPOCH = 100
+BATCH_SIZE = 32
 
 FEATURE_DIM = 0
 CLASS_DIM = 0
@@ -55,7 +55,7 @@ def train_node_classifier(train_dataset, val_dataset, test_dataset, **model_kwar
     root_dir = os.path.join(CHECKPOINT_PATH, "NodeLevel" + model_name)
     os.makedirs(root_dir, exist_ok=True)
     trainer = pl.Trainer(default_root_dir=root_dir,
-                         callbacks=[ModelCheckpoint(save_weights_only=True, mode="max", monitor="val_loss")],
+                         callbacks=[ModelCheckpoint(save_weights_only=True, mode="min", monitor="val_loss")],
                          accelerator="gpu" if str(device).startswith("cuda") else "cpu",
                          devices=1,
                          max_epochs=MAX_EPOCH,
@@ -73,6 +73,7 @@ def train_node_classifier(train_dataset, val_dataset, test_dataset, **model_kwar
     train_acc = predict(model_used_to_predict, train_dataset)
     val_acc = predict(model_used_to_predict, val_dataset)
     test_acc = predict(model_used_to_predict, test_dataset)
+    # test_acc = 0
     result = {"train": train_acc,
               "val": val_acc,
               "test": test_acc}

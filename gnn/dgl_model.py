@@ -39,7 +39,7 @@ class NodeLevelGNN(pl.LightningModule):
 
     def forward(self, batched_graph, mode="train"):
         # batched_graph = batched_graph.to('cuda')
-        batched_graph = dgl.add_self_loop(batched_graph)
+        # batched_graph = dgl.add_self_loop(batched_graph)
         batched_features = batched_graph.ndata['feat']
         batched_mask = batched_graph.ndata['mask']
         batched_labels = batched_graph.ndata['label'][batched_mask]

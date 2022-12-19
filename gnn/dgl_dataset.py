@@ -51,7 +51,7 @@ class EdsDataset(DGLDataset):
             for n in eds.nodes:
                 nodes_embeds.append(node_features_dict[n.id])
             node_features = torch.cat(nodes_embeds) # node features
-            print(node_features.shape)
+            # print(node_features.shape)
             
             mask = [False if not target_node == x else True for x in node_id_to_idx_dict.keys()]
     
@@ -60,7 +60,7 @@ class EdsDataset(DGLDataset):
             
             edges_src, edges_tgt = self._eds_to_graph(eds, node_id_to_idx_dict)
             edge_features = self._get_edge_features(edges_src, edges_tgt, nodes_embeds).to(self.device) # edge features
-            print(edge_features.shape)
+            # print(edge_features.shape)
 
             graph = dgl.graph((edges_src, edges_tgt), num_nodes=len(eds.nodes)).to(self.device)
             graph.ndata['feat'] = node_features
@@ -68,6 +68,8 @@ class EdsDataset(DGLDataset):
             graph.edata['weight'] = edge_features
 
             graph.ndata['mask'] = torch.tensor(mask).to(self.device)
+            
+            graph = dgl.add_reverse_edges(graph)
             self.graphs.append(graph)
 
     def __getitem__(self, i):

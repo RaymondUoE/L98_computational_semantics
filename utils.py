@@ -1,4 +1,5 @@
 # from delphin.eds._eds import EDS
+import copy
 import delphin.codecs.eds
 import graphviz
 
@@ -78,10 +79,13 @@ def arg_number_decrease_by_one(arg):
 def eds_from_string(string):
     return delphin.codecs.eds.decode(string)
 
+def eds_to_string(eds):
+    return delphin.codecs.eds.encode(eds)
+
 def string_of_list_to_list(string_of_list):
     return string_of_list.strip('[]').replace('\'', '').replace('\"', '').split(', ')
 
-def find_node_ids_edge_targets(eds, semlinks):
+def find_node_ids_edge_targets(eds, semlinks, enhance=False):
     # one eds can have multiple semlinks
     # one semlink can augment multiple edges
     node_index = 0
@@ -95,6 +99,8 @@ def find_node_ids_edge_targets(eds, semlinks):
     fn_frames = []
     edge_targets = []
     fn_roles = []
+    
+    enhanced = copy.deepcopy(eds)
 
     while True:
         # cannot find corresponding verb in eds for a semlink
@@ -109,6 +115,7 @@ def find_node_ids_edge_targets(eds, semlinks):
             break
         cur_sl = semlinks[semlink_index]
         cur_augmentations = string_of_list_to_list(cur_sl['augmentations'])
+        # cur_augmentations = cur_sl['augmentations']
         cur_node = eds.nodes[node_index]
 
 
@@ -117,18 +124,30 @@ def find_node_ids_edge_targets(eds, semlinks):
             node_ids.append(cur_node.id)
             fn_frames.append(cur_sl['fn_frame'])
             sls.append(cur_sl)
+            
+            if enhance:
+                # cur_node.predicate = cur_node.predicate + '-fn.' + cur_sl['fn_frame']
+                enhanced.nodes[node_index].predicate = cur_node.predicate + '-fn.' + cur_sl['fn_frame']
 
             # cur_verb_edge_labels = []
             cur_verb_edge_targets = []
             cur_verb_edge_fn_roles = []
             # looking for edges
-            for label, target in cur_node.edges.items():
+            for label in list(cur_node.edges):
+                target = cur_node.edges[label]
                 augmentations, has_redundant_pb_role = process_augmentations(cur_augmentations)
                 if has_redundant_pb_role:
                     counter_redundant_pb += 1
                 if arg_number_decrease_by_one(label) in augmentations:
                     cur_verb_edge_targets.append(target)
-                    cur_verb_edge_fn_roles.append(augmentations[arg_number_decrease_by_one(label)])
+                    fn_role = augmentations[arg_number_decrease_by_one(label)] 
+                    cur_verb_edge_fn_roles.append(fn_role)
+                    
+                    if enhance and label in enhanced.nodes[node_index].edges: # avoid error from redundany pb role
+                        if fn_role != '':
+                            new_key = label + '-fn.' + augmentations[arg_number_decrease_by_one(label)]
+                            # cur_node.edges[new_key] = cur_node.edges.pop(label)
+                            enhanced.nodes[node_index].edges[new_key] = enhanced.nodes[node_index].edges.pop(label)
             
 
             # after looping through edges
@@ -144,7 +163,7 @@ def find_node_ids_edge_targets(eds, semlinks):
             'edge_targets': edge_targets, 
             'fn_roles': fn_roles, 
             'counter_redundant_pb': counter_redundant_pb, 
-            'node_cannot_be_found': node_cannot_be_found}
+            'node_cannot_be_found': node_cannot_be_found}, enhanced
 
 def process_augmentations(list_of_augmentations):
     '''return arg0, arg1... and frameNet roles if any'''
