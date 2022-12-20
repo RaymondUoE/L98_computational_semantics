@@ -7,11 +7,10 @@ import pandas as pd
 
 from sklearn.utils import shuffle
 from tqdm import tqdm
-from utils import *
+from gnn.utils import *
 
 
 def main(argv):
-
     PREPARE_FOR_GNN = False
 
     opts, args = getopt.getopt(argv,"hg",["gnn-only"])
@@ -57,7 +56,7 @@ def prepare_gnn():
     for k, v in cleaned_data.items():
         # it has semlink
         if 'semlink' in v and 'eds' in v:
-            result = find_node_ids_edge_targets(v['eds'], v['semlink'])
+            result, _ = find_node_ids_edge_targets(v['eds'], v['semlink'])
             counter_redundant_pb += result['counter_redundant_pb']
             node_cannot_be_found += result['node_cannot_be_found']
             
@@ -88,10 +87,10 @@ def prepare_gnn():
     train_data = df[:val_index]
     val_data = df[val_index:test_index]
     test_data = df[test_index:]
-    train_data.to_csv('./gnn/data/raw/gnn_data_dgl_train_small.csv',index=False)
-    val_data.to_csv('./gnn/data/raw/gnn_data_dgl_val_small.csv',index=False)
-    test_data.to_csv('./gnn/data/raw/gnn_data_dgl_test_small.csv',index=False)
-    df.to_csv('gnn_data.csv',index=False)
+    train_data.to_csv('./gnn/data/raw/gnn_data_dgl_train.csv',index=False)
+    val_data.to_csv('./gnn/data/raw/gnn_data_dgl_val.csv',index=False)
+    test_data.to_csv('./gnn/data/raw/gnn_data_dgl_test.csv',index=False)
+    # df.to_csv('gnn_data.csv',index=False)
 
     # build_node_target_dict(dicts)
 

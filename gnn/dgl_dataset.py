@@ -6,6 +6,11 @@ import json
 from tqdm import tqdm
 import delphin.codecs.eds
 from featureriser import Featureriser
+import sys
+ 
+# setting path
+sys.path.append('../')
+from utils import string_of_list_to_list
 
 class EdsDataset(DGLDataset):
     def __init__(self, name='random', save_dir='./data/processed', mode='train'):
@@ -28,9 +33,15 @@ class EdsDataset(DGLDataset):
         print('Processing data...')
         if self.mode == 'train':
             self.label_dict = self._build_label_dict(list(data_to_be_processed['fn_frame'].values))
+            list_of_edge_labels = list(data_to_be_processed.apply(lambda x: string_of_list_to_list(x['fn_roles']), axis=1))
+            flattened_list = [y for x in list_of_edge_labels for y in x]
+            self.edge_dict = self._build_edge_label_dict(flattened_list)
         else:
-            with open('node_label_dict.json', 'r') as f:
+            with open('./data/node_label_dict.json', 'r') as f:
                 self.label_dict = json.load(f)
+                f.close()
+            with open('./data/edge_label_dict.json', 'r') as f:
+                self.edge_dict = json.load(f)
                 f.close()
         
         edses = []
@@ -70,6 +81,7 @@ class EdsDataset(DGLDataset):
             graph.ndata['mask'] = torch.tensor(mask).to(self.device)
             
             graph = dgl.add_reverse_edges(graph)
+            graph = dgl.add_self_loop(graph)
             self.graphs.append(graph)
 
     def __getitem__(self, i):
@@ -87,8 +99,24 @@ class EdsDataset(DGLDataset):
 
         label_dict[self.unknown_label] = len(label_dict)
 
-        print('Number of node labels: ', len(unique_labels) + 1)
-        with open('./node_label_dict.json', 'w') as f:
+        print('Number of node labels: ', len(label_dict))
+        with open('./data/node_label_dict.json', 'w') as f:
+            f.write(json.dumps(label_dict, indent=2))
+            f.close()
+        return label_dict
+    
+    def _build_edge_label_dict(self, edge_labels):
+        
+        print('Building edge label dictionary...')
+        label_dict = {}
+        unique_labels = list(set(edge_labels))
+        for l, ind in zip(unique_labels, range(len(unique_labels))):
+            label_dict[l] = ind
+
+        label_dict[self.unknown_label] = len(label_dict)
+        
+        print('Number of edge labels: ', len(label_dict))
+        with open('./data/edge_label_dict.json', 'w') as f:
             f.write(json.dumps(label_dict, indent=2))
             f.close()
         return label_dict

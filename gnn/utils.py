@@ -4,42 +4,6 @@ import delphin.codecs.eds
 import graphviz
 
 from nltk.tree import Tree
-# eds._eds
-
-# class EnhancedEDS(EDS):
-#     # def __init__(self,
-#     #              top: str = None,
-#     #              nodes: Iterable[Node] = None,
-#     #              lnk: Lnk = None,
-#     #              surface=None,
-#     #              identifier=None):
-#     #     print('ss')
-#     #     if nodes is None:
-#     #         nodes = []
-#     #     super().__init__(top, list(nodes), lnk, surface, identifier)
-    
-    
-        
-#     def search_nodes_by_id (self, idd):
-#         for n in self.nodes:
-#             if n.id == idd:
-#                 return n
-#         return None
-
-    
-# def find_eds_by_ids_df(section_id, doc_id, sentence_id, df):
-#     result  = df[(df['section_id'] == section_id) & (df['doc_id'] == doc_id) & (df['sentence_id'] == sentence_id)]
-#     if len(result) == 0:
-# #         no result found
-#         return None
-#     else:
-#         return result['eds'].values[0]
-    # try:
-    #     eds = df[(df['section_id'] == section_id) & (df['doc_id'] == doc_id) & (df['sentence_id'] == sentence_id)]['eds'].values[0]
-    #     return delphin.codecs.eds.decode(eds)
-    # except:
-    #     return None
-
 
 def find_df_by_id(idd, df):
     result = df[df['id'] == idd]

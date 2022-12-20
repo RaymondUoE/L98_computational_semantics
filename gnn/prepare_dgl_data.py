@@ -1,7 +1,7 @@
 import pandas as pd
 
 
-RAW_PATH = './data/raw/gnn_data_small.csv'
+RAW_PATH = './data/raw/gnn_data_dgl_train.csv'
 
 
 
@@ -16,7 +16,7 @@ RAW_PATH = './data/raw/gnn_data_small.csv'
 
 if __name__ == "__main__":
     data = pd.read_csv(RAW_PATH).reset_index(drop=True)
-
+    data = data.iloc[:500]
     num_of_data = len(data)
     val_index = int(num_of_data * 0.8)
     test_index = int(num_of_data * 0.9)

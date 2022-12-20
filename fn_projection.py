@@ -1,6 +1,6 @@
 import pickle
 import json
-from utils import *
+from gnn.utils import *
 from tqdm import tqdm
 
 def enhance(edses, semlinks):
