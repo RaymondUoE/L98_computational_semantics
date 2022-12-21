@@ -18,6 +18,7 @@ BATCH_SIZE = 32
 
 FEATURE_DIM = 0
 CLASS_DIM = 0
+EDGE_DIM = 0
 torch.manual_seed(22)
 
 device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
@@ -27,16 +28,17 @@ def main():
     train_dataset = check_saved_data(mode='train')
     val_dataset = check_saved_data(mode='val')
     test_dataset = check_saved_data(mode='test')
-
+    
     global FEATURE_DIM 
     FEATURE_DIM = train_dataset[0].ndata['feat'].shape[1]
     global CLASS_DIM 
     CLASS_DIM = len(train_dataset.label_dict)
+    global EDGE_DIM
+    EDGE_DIM = len(train_dataset.edge_dict)
     node_gnn_model, node_gnn_result = train_node_classifier(
                                                         train_dataset=train_dataset,
                                                         val_dataset=val_dataset,
                                                         test_dataset=test_dataset,
-                                                        h_feats=512,
                                                         dp_rate=0.1)
     print_results(node_gnn_result)
 
@@ -50,86 +52,52 @@ def train_node_classifier(train_dataset, val_dataset, test_dataset, **model_kwar
         val_dataset, batch_size=BATCH_SIZE, drop_last=False)
     test_dataloader = GraphDataLoader(
         test_dataset, batch_size=BATCH_SIZE, drop_last=False)
-
-
+    
     root_dir = os.path.join(CHECKPOINT_PATH, "NodeLevel" + model_name)
     os.makedirs(root_dir, exist_ok=True)
     trainer = pl.Trainer(default_root_dir=root_dir,
-                         callbacks=[ModelCheckpoint(save_weights_only=True, mode="min", monitor="val_loss")],
+                         callbacks=[ModelCheckpoint(save_weights_only=True, mode="max", monitor="val_accuracy")],
                          accelerator="gpu" if str(device).startswith("cuda") else "cpu",
                          devices=1,
                          max_epochs=MAX_EPOCH,
                          enable_progress_bar=True)
     trainer.logger._default_hp_metric = None # Optional logging argument that we don't need
 
-    model = NodeLevelGNN(model_name=model_name, batch_size=BATCH_SIZE, in_feats=FEATURE_DIM, num_classes=CLASS_DIM, **model_kwargs)
+    model = NodeLevelGNN(model_name=model_name, 
+                         batch_size=BATCH_SIZE, 
+                         in_feats=FEATURE_DIM,
+                         h_feats=728,
+                         d_embed=728, 
+                         verb_class=CLASS_DIM,
+                         edge_class=EDGE_DIM,
+                        #  num_classes=CLASS_DIM, 
+                         **model_kwargs)
     trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
-    # best_model = os.path.join(trainer.checkpoint_callback.best_model_path, f"NodeLevel{model_name}.ckpt")
     model = NodeLevelGNN.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
 
-    # Test best model on the test set
-    model_used_to_predict = model.get_model().to(device)
-   
-    train_acc = predict(model_used_to_predict, train_dataset)
-    val_acc = predict(model_used_to_predict, val_dataset)
-    test_acc = predict(model_used_to_predict, test_dataset)
-    # test_acc = 0
-    result = {"train": train_acc,
-              "val": val_acc,
-              "test": test_acc}
+    train_result = trainer.test(model, dataloaders=train_dataloader)[0]
+    val_result = trainer.test(model, dataloaders=val_dataloader)[0]
+    test_result = trainer.test(model, dataloaders=test_dataloader)[0]
+    result = {"train": train_result['test_accuracy'],
+              "val": val_result['test_accuracy'],
+              "test": test_result['test_accuracy']}
     return model, result
-    # return model
 
+def pl_predict(model, predict_dataloader):
+        torch.set_grad_enabled(False)
+        model.eval()
+        verb_pred_all = []
+        edge_pred_all = []
 
-def old():
-    train_dataset = check_saved_data(mode='train')
-    val_dataset = check_saved_data(mode='val')
-    test_dataset = check_saved_data(mode='test')
-    train_dataloader = GraphDataLoader(
-        train_dataset, batch_size=BATCH_SIZE, drop_last=False)
-    val_dataloader = GraphDataLoader(
-        val_dataset, batch_size=BATCH_SIZE, drop_last=False)
-    test_dataloader = GraphDataLoader(
-        test_dataset, batch_size=BATCH_SIZE, drop_last=False)
-
-    model = GCN(train_dataset[0].ndata['feat'].shape[1], 16, len(train_dataset.label_dict)).to('cuda')
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
-
-    for epoch in range(20):
-        for batched_graph in train_dataloader:
-            batched_graph = batched_graph.to('cuda')
-            batched_graph = dgl.add_self_loop(batched_graph)
-            batched_features = batched_graph.ndata['feat']
-            batched_mask = batched_graph.ndata['mask']
-            
-            batched_labels = batched_graph.ndata['label'][batched_mask]
-            pred = model(batched_graph, batched_features)[batched_mask]
-            loss = F.cross_entropy(pred, batched_labels)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-    num_correct = 0
-    num_tests = len(val_dataset)
-    for batched_graph in val_dataloader:
-        batched_graph = batched_graph.to('cuda')
-        batched_graph = dgl.add_self_loop(batched_graph)
-        batched_features = batched_graph.ndata['feat']
-        batched_mask = batched_graph.ndata['mask']
-
-        batched_labels = batched_graph.ndata['label'][batched_mask]
-        pred = model(batched_graph, batched_features)[batched_mask]
-        pred = pred.argmax(dim=-1)
-        num_correct += (pred == batched_labels).sum().item()
-        # num_tests += len(labels)
-    print(float(num_correct)/num_tests)
-    # g = train_dataset[0]
-    # g = g.to('cuda')
-    # model = GCN(g.ndata['feat'].shape[1], 16, len(train_dataset.label_dict)).to('cuda')
-
-    # train(g, model)
-
-
+        for batch_idx, batch in enumerate(predict_dataloader):
+            result = model.predict_step(batch, batch_idx)
+            verb_pred_all.append(result['verb_pred'])
+            if result['need_edge_classify']:
+                edge_pred_all.append(result['edge_pred'])
+            else:
+                edge_pred_all.append(-1)
+        return verb_pred_all, edge_pred_all
+        
 def check_saved_data(mode):
     if mode not in ['train', 'val', 'test']:
         raise Exception('Mode error. train val test')
@@ -156,14 +124,33 @@ def print_results(result_dict):
         print(f"Val accuracy:   {(100.0*result_dict['val']):4.2f}%")
     print(f"Test accuracy:  {(100.0*result_dict['test']):4.2f}%")
 
-def predict(model, dataset):
+def predict(gcn, verb_classify, edge_classify, dataset):
     num_correct = 0
     for batched_graph in dataset:
-        batched_graph = dgl.add_self_loop(batched_graph)
+        # batched_graph = dgl.add_self_loop(batched_graph)
         batched_features = batched_graph.ndata['feat']
-        batched_mask = batched_graph.ndata['mask']
-        batched_labels = batched_graph.ndata['label'][batched_mask]
-        pred = model.forward(batched_graph, batched_features)[batched_mask]
+        batched_verb_mask = batched_graph.ndata['verb_mask']
+        batched_arg_mask = batched_graph.ndata['edge_mask']
+        batched_verb_labels = batched_graph.ndata['verb_label'][batched_verb_mask]
+        batched_edge_labels = batched_graph.ndata['edge_label'][batched_arg_mask]
+        node_embed = gcn(batched_graph, batched_features)
+        verb_embed = node_embed[batched_verb_mask]
+        arg_embed = node_embed[batched_arg_mask]
+        verb_num_of_children = batched_graph.ndata['verb_num_children'][batched_verb_mask]
+        
+        v_stack = []
+        for i, num in zip(range(verb_num_of_children.shape[0]), verb_num_of_children):
+            v = verb_embed[i, :]
+            if num > 0:
+                v_stack.append(v.unsqueeze(0).repeat(num,1))
+        v_stack_emb = torch.cat(v_stack, dim=0).to(self.device)
+        
+        verb_class = verb_classify(verb_embed)
+        arg_class = edge_classify(v_stack_emb, arg_embed)
+        
+        batched_verb_labels = batched_graph.ndata['verb_label'][batched_verb_mask]
+        batched_edge_labels = batched_graph.ndata['edge_label'][batched_arg_mask]
+        
         pred = pred.argmax(dim=-1)
         num_correct += (pred == batched_labels).sum().item()
         

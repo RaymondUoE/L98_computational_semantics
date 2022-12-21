@@ -52,10 +52,11 @@ class EdsDataset(DGLDataset):
         all_graph_node_feature = Featureriser.bert_featurerise(edses, sentences)
 
         for index, row in tqdm(data_to_be_processed.iterrows(), total=data_to_be_processed.shape[0]):
-            eds_str = row['eds']
-            eds = delphin.codecs.eds.decode(eds_str)
+            eds = delphin.codecs.eds.decode(row['eds'])
             node_id_to_idx_dict = self._build_node_dict(eds.nodes)
             target_node = row['target_node']
+            edge_targets = string_of_list_to_list(row['edge_targets'])
+            edge_labels = [x if x != '' else self.unknown_label for x in string_of_list_to_list(row['fn_roles'])]
                 
             node_features_dict = all_graph_node_feature[index]
             nodes_embeds = []
@@ -64,21 +65,37 @@ class EdsDataset(DGLDataset):
             node_features = torch.cat(nodes_embeds) # node features
             # print(node_features.shape)
             
-            mask = [False if not target_node == x else True for x in node_id_to_idx_dict.keys()]
-    
-            node_labels = torch.tensor([-1 if not x else self._get_node_label_index(row['fn_frame']) for x in list(mask)]).to(self.device)
+            verb_mask = [False if not target_node == x else True for x in node_id_to_idx_dict.keys()]
+            verb_label = torch.tensor([-1 if not x else self._get_node_label_index(row['fn_frame']) for x in list(verb_mask)]).to(self.device)
             
+            
+            arg_mask = [False if not x in edge_targets else True for x in node_id_to_idx_dict.keys()]
+            # print(arg_mask)
+            arg_label = []
+            i = 0
+            for m in arg_mask:
+                if not m:
+                    arg_label.append(-1)
+                else:
+                    arg_label.append(self._get_edge_label_index(edge_labels[i]))
+                    i += 1
+            arg_label = torch.tensor(arg_label).to(self.device)
+            # verb_children = [0 if not x else self._get_node_label_index(row['fn_frame']) for x in list(verb_mask)]
             
             edges_src, edges_tgt = self._eds_to_graph(eds, node_id_to_idx_dict)
-            edge_features = self._get_edge_features(edges_src, edges_tgt, nodes_embeds).to(self.device) # edge features
+            # edge_features = self._get_edge_features(edges_src, edges_tgt, nodes_embeds).to(self.device) # edge features
             # print(edge_features.shape)
 
             graph = dgl.graph((edges_src, edges_tgt), num_nodes=len(eds.nodes)).to(self.device)
             graph.ndata['feat'] = node_features
-            graph.ndata['label'] = node_labels
-            graph.edata['weight'] = edge_features
+            graph.ndata['verb_label'] = verb_label
+            graph.ndata['edge_label'] = arg_label
+            # make it the size of num_of_nodes
+            graph.ndata['verb_num_children'] = torch.tensor(sum(arg_mask)).repeat(len(node_id_to_idx_dict)).to(self.device)
+            # graph.edata['weight'] = edge_features
 
-            graph.ndata['mask'] = torch.tensor(mask).to(self.device)
+            graph.ndata['verb_mask'] = torch.tensor(verb_mask).to(self.device)
+            graph.ndata['edge_mask'] = torch.tensor(arg_mask).to(self.device)
             
             graph = dgl.add_reverse_edges(graph)
             graph = dgl.add_self_loop(graph)
@@ -163,4 +180,10 @@ class EdsDataset(DGLDataset):
             return self.label_dict[label]
         else:
             return self.label_dict[self.unknown_label]
+    
+    def _get_edge_label_index(self, label):
+        if label in self.edge_dict:
+            return self.edge_dict[label]
+        else:
+            return self.edge_dict[self.unknown_label]
 
