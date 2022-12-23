@@ -76,7 +76,7 @@ class Featureriser(object):
         for idx in tqdm(range(0, len(sentences), batch_size), total=int(np.ceil(len(sentences)/batch_size))):
             batch = sentences[idx : min(len(sentences), idx+batch_size)]
             
-            encoded = tokenizer.batch_encode_plus(batch,max_length=512, padding='max_length', truncation=False)
+            encoded = tokenizer.batch_encode_plus(batch,max_length=256, padding='max_length', truncation=False)
             for ids in encoded['input_ids']:
                 tks = tokenizer.convert_ids_to_tokens(ids)
                 tokens_list.append(list(filter(lambda x: x != '[PAD]', tks)))

@@ -61,7 +61,6 @@ class EdgeClassifyStack(nn.Module):
     def forward(self, vb, arg):
         vb = self.flatten(vb)
         arg = self.flatten(arg)
-        # print(torch.cat([vb, arg, vb - arg],dim=1).shape)
         logits = self.edge_classify_stack(torch.cat([vb, arg, vb - arg], dim=1))
         return logits
     

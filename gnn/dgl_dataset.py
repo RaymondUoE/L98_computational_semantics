@@ -17,10 +17,10 @@ class EdsDataset(DGLDataset):
         
         self.unknown_label = '<UNK>'
         self.mode = mode
-        self.datapath = f'./data/raw/gnn_data_dgl_{self.mode}_small.csv'
+        # self.datapath = f'./data/raw/gnn_data_dgl_{self.mode}_small.csv'
+        self.datapath = f'./data/raw/gnn_data_dgl_{self.mode}.csv'
         
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        # self.save_path = './data/processed'
         super().__init__(name='eds')
     
 
@@ -34,7 +34,7 @@ class EdsDataset(DGLDataset):
         if self.mode == 'train':
             self.label_dict = self._build_label_dict(list(data_to_be_processed['fn_frame'].values))
             list_of_edge_labels = list(data_to_be_processed.apply(lambda x: string_of_list_to_list(x['fn_roles']), axis=1))
-            flattened_list = [y for x in list_of_edge_labels for y in x]
+            flattened_list = [y for x in list_of_edge_labels for y in x if y != '']
             self.edge_dict = self._build_edge_label_dict(flattened_list)
         else:
             with open('./data/node_label_dict.json', 'r') as f:
@@ -57,7 +57,9 @@ class EdsDataset(DGLDataset):
             target_node = row['target_node']
             edge_targets = string_of_list_to_list(row['edge_targets'])
             edge_labels = [x if x != '' else self.unknown_label for x in string_of_list_to_list(row['fn_roles'])]
-                
+            
+            assert '' not in edge_labels
+            
             node_features_dict = all_graph_node_feature[index]
             nodes_embeds = []
             for n in eds.nodes:
@@ -109,12 +111,19 @@ class EdsDataset(DGLDataset):
 
     def _build_label_dict(self, labels):
         print('Building label dictionary...')
+        label_list = list(labels)
         label_dict = {}
-        unique_labels = list(set(labels))
+        if 'IN' in label_list:
+            labels = label_list.remove('IN')
+        if 'NF' in label_list:
+            labels = label_list.remove('NF')
+            
+        unique_labels = list(set(label_list))
         for l, ind in zip(unique_labels, range(len(unique_labels))):
             label_dict[l] = ind
-
-        label_dict[self.unknown_label] = len(label_dict)
+        
+        if self.unknown_label not in label_dict:
+            label_dict[self.unknown_label] = len(label_dict)
 
         print('Number of node labels: ', len(label_dict))
         with open('./data/node_label_dict.json', 'w') as f:
@@ -129,8 +138,9 @@ class EdsDataset(DGLDataset):
         unique_labels = list(set(edge_labels))
         for l, ind in zip(unique_labels, range(len(unique_labels))):
             label_dict[l] = ind
-
-        label_dict[self.unknown_label] = len(label_dict)
+        
+        if self.unknown_label not in label_dict:
+            label_dict[self.unknown_label] = len(label_dict)
         
         print('Number of edge labels: ', len(label_dict))
         with open('./data/edge_label_dict.json', 'w') as f:
@@ -156,7 +166,7 @@ class EdsDataset(DGLDataset):
     def _get_edge_features(self, edges_src, edges_tgt, nodes_embeds):
         # return |E| x De
         # torch.manual_seed(22)
-        # return torch.randn([len(edges), 50])
+        # not used. DGL not yet supporting high dimensional edge features
         edge_features = []
         for i in range(len(edges_src)):
             src_embed = nodes_embeds[edges_src[i]]
@@ -176,12 +186,16 @@ class EdsDataset(DGLDataset):
         return edges_src, edges_tgt
 
     def _get_node_label_index(self, label):
+        if label in ['IN', 'NF']:
+            return self.label_dict[self.unknown_label]
         if label in self.label_dict:
             return self.label_dict[label]
         else:
             return self.label_dict[self.unknown_label]
     
     def _get_edge_label_index(self, label):
+        if label == '':
+            return self.edge_dict[self.unknown_label]
         if label in self.edge_dict:
             return self.edge_dict[label]
         else:

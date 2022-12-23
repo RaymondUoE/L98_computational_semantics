@@ -4,6 +4,7 @@ import pickle
 import delphin.codecs.eds
 
 import pandas as pd
+import numpy as np
 
 from sklearn.utils import shuffle
 from tqdm import tqdm
@@ -30,16 +31,6 @@ def main(argv):
 
         clean_data()
 
-# def build_node_target_dict(dicts):
-#     labels = []
-#     for d in dicts:
-#         labels.append(d['fn_frame'])
-#     labels = list(set(labels))
-
-#     node_target_dict = {}
-#     for l, index in zip(labels, range(len(labels))):
-#         node_target_dict[l] = index
-#         # TODO
 
 def prepare_gnn():
     print('Loading dataset...')
@@ -77,8 +68,23 @@ def prepare_gnn():
     print('EDS does not have corresponding node for semlink {} times'.format(node_cannot_be_found))
     print('Clean data points: {}'.format(len(dicts)))
     df = pd.DataFrame(dicts)
+    df = df.dropna(how='any', axis=0)
     df = shuffle(df, random_state=100)
-    
+    # subsampling missing data
+    df['all_children_labelled'] = list(map(
+                                        lambda x: x > 0, map(
+                                            lambda x: np.product([1 if y != '' else 0 for y in x]), df['fn_roles'])))
+    df_filter_frame = df[~df['fn_frame'].isin(['NF','IN'])]
+    all_labelled = df_filter_frame[(df_filter_frame['all_children_labelled'] == True) | (df_filter_frame['edge_targets'] == '[]')]
+    only_children_missing = df_filter_frame[(df_filter_frame['all_children_labelled'] == False) & (df_filter_frame['edge_targets'] != '[]')]
+    all_missing = df[(df['fn_frame'].isin(['NF','IN'])) & (df['all_children_labelled'] == False) & (df['edge_targets'] != '[]')]
+    add_num = int(len(all_labelled) / 0.98 * 0.01)
+    adding_children_missing = only_children_missing.sample(frac=1).reset_index(drop=True)[:add_num]
+    adding_all_missing = all_missing.sample(frac=1).reset_index(drop=True)[:add_num]
+    df = pd.concat([all_labelled, adding_children_missing, adding_all_missing], ignore_index=True).sample(frac=1).reset_index(drop=True)
+    print(f'All labeled data: {len(all_labelled)}')
+    print(f'Only edge missing: {len(adding_children_missing)}')
+    print(f'All labels missing: {len(adding_all_missing)}')
     num_of_data = len(df)
     val_index = int(num_of_data * 0.8)
     test_index = int(num_of_data * 0.9)

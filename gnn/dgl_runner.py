@@ -8,7 +8,7 @@ import pytorch_lightning as pl
 from dgl.dataloading import GraphDataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
-import joblib
+import pickle
 
 
 CHECKPOINT_PATH = "./model"
@@ -83,6 +83,7 @@ def train_node_classifier(train_dataset, val_dataset, test_dataset, **model_kwar
               "test": test_result['test_accuracy']}
     return model, result
 
+
 def pl_predict(model, predict_dataloader):
         torch.set_grad_enabled(False)
         model.eval()
@@ -98,25 +99,23 @@ def pl_predict(model, predict_dataloader):
                 edge_pred_all.append(-1)
         return verb_pred_all, edge_pred_all
         
+        
 def check_saved_data(mode):
     if mode not in ['train', 'val', 'test']:
         raise Exception('Mode error. train val test')
     if os.path.exists(f'./data/processed/dgl_graphs_{mode}.pkl'):
         print(f'Data found, mode = {mode}. Loading...')
         with open(f'./data/processed/dgl_graphs_{mode}.pkl', 'rb') as f:
-            dataset = joblib.load(f)
+            dataset = pickle.load(f)
             f.close()
     else:
         dataset = EdsDataset(mode=mode)
         with open(f'./data/processed/dgl_graphs_{mode}.pkl', 'wb') as f:
-            joblib.dump(dataset, f)
+            pickle.dump(dataset, f)
             f.close()
     return dataset
     
-
-
-
-
+    
 def print_results(result_dict):
     if "train" in result_dict:
         print(f"Train accuracy: {(100.0*result_dict['train']):4.2f}%")
@@ -124,38 +123,6 @@ def print_results(result_dict):
         print(f"Val accuracy:   {(100.0*result_dict['val']):4.2f}%")
     print(f"Test accuracy:  {(100.0*result_dict['test']):4.2f}%")
 
-def predict(gcn, verb_classify, edge_classify, dataset):
-    num_correct = 0
-    for batched_graph in dataset:
-        # batched_graph = dgl.add_self_loop(batched_graph)
-        batched_features = batched_graph.ndata['feat']
-        batched_verb_mask = batched_graph.ndata['verb_mask']
-        batched_arg_mask = batched_graph.ndata['edge_mask']
-        batched_verb_labels = batched_graph.ndata['verb_label'][batched_verb_mask]
-        batched_edge_labels = batched_graph.ndata['edge_label'][batched_arg_mask]
-        node_embed = gcn(batched_graph, batched_features)
-        verb_embed = node_embed[batched_verb_mask]
-        arg_embed = node_embed[batched_arg_mask]
-        verb_num_of_children = batched_graph.ndata['verb_num_children'][batched_verb_mask]
-        
-        v_stack = []
-        for i, num in zip(range(verb_num_of_children.shape[0]), verb_num_of_children):
-            v = verb_embed[i, :]
-            if num > 0:
-                v_stack.append(v.unsqueeze(0).repeat(num,1))
-        v_stack_emb = torch.cat(v_stack, dim=0).to(self.device)
-        
-        verb_class = verb_classify(verb_embed)
-        arg_class = edge_classify(v_stack_emb, arg_embed)
-        
-        batched_verb_labels = batched_graph.ndata['verb_label'][batched_verb_mask]
-        batched_edge_labels = batched_graph.ndata['edge_label'][batched_arg_mask]
-        
-        pred = pred.argmax(dim=-1)
-        num_correct += (pred == batched_labels).sum().item()
-        
-    return float(num_correct)/len(dataset)
 
 if __name__ == "__main__":
     main()
-    # old()
