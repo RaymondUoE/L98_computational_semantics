@@ -70,6 +70,7 @@ def prepare_gnn():
     df = pd.DataFrame(dicts)
     df = df.dropna(how='any', axis=0)
     df = shuffle(df, random_state=100)
+    # df.to_csv('gnn_full.csv', index=False)
     # subsampling missing data
     df['all_children_labelled'] = list(map(
                                         lambda x: x > 0, map(

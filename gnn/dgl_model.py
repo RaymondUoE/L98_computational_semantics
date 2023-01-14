@@ -61,7 +61,7 @@ class EdgeClassifyStack(nn.Module):
     def forward(self, vb, arg):
         vb = self.flatten(vb)
         arg = self.flatten(arg)
-        logits = self.edge_classify_stack(torch.cat([vb, arg, vb - arg], dim=1))
+        logits = self.edge_classify_stack(torch.cat([vb, arg, torch.abs(vb - arg)], dim=1))
         return logits
     
 class NodeLevelGNN(pl.LightningModule):
