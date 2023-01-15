@@ -3,12 +3,11 @@ from dgl_model import GCN, NodeLevelGNN
 from dgl_dataset import EdsDataset
 import torch.nn.functional as F
 import os
-import dgl
 import pytorch_lightning as pl
 from dgl.dataloading import GraphDataLoader
-from torch.utils.data.sampler import SubsetRandomSampler
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 import pickle
+import json
 
 
 CHECKPOINT_PATH = "./model"
@@ -35,6 +34,12 @@ def main():
     CLASS_DIM = len(train_dataset.label_dict)
     global EDGE_DIM
     EDGE_DIM = len(train_dataset.edge_dict)
+    with open('./data/edge_label_dict.json', 'w') as f:
+        f.write(json.dumps(train_dataset.edge_dict, indent=2))
+        f.close()
+    with open('./data/node_label_dict.json', 'w') as f:
+        f.write(json.dumps(train_dataset.label_dict, indent=2))
+        f.close()
     node_gnn_model, node_gnn_result = train_node_classifier(
                                                         train_dataset=train_dataset,
                                                         val_dataset=val_dataset,

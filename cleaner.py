@@ -1,6 +1,5 @@
 import sys, getopt
 import pickle
-# import joblib
 import delphin.codecs.eds
 
 import pandas as pd
@@ -70,7 +69,6 @@ def prepare_gnn():
     df = pd.DataFrame(dicts)
     df = df.dropna(how='any', axis=0)
     df = shuffle(df, random_state=100)
-    # df.to_csv('gnn_full.csv', index=False)
     # subsampling missing data
     df['all_children_labelled'] = list(map(
                                         lambda x: x > 0, map(
@@ -137,13 +135,8 @@ def clean_data():
     filtered_sentences = sentences[~sentences.id.isin(semlink_missing)]
 
 
-    # for index, row in tqdm(sentences.iterrows(), total=len(sentences)):
     for index, row in tqdm(filtered_sentences.iterrows(), total=len(filtered_sentences)):
         temp_dict = {}
-        # section_id = row['section_id']
-        # doc_id = row['doc_id']
-        # sentence_id = row['sentence_id']
-        # all_index = str(section_id).zfill(3) + str(doc_id).zfill(3) + str(sentence_id).zfill(3)
         cur_id = row['id']
 
         # filter EDS

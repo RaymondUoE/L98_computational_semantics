@@ -13,22 +13,27 @@ sys.path.append('../')
 from utils import string_of_list_to_list
 
 class EdsDataset(DGLDataset):
-    def __init__(self, name='random', save_dir='./data/processed', mode='train'):
+    def __init__(self, name='random', save_dir='./data/processed', mode='train', edses=None, sentences=None):
         
         self.unknown_label = '<UNK>'
         self.mode = mode
-        # self.datapath = f'./data/raw/gnn_data_dgl_{self.mode}_small.csv'
-        self.datapath = f'./data/raw/gnn_data_dgl_{self.mode}.csv'
-        
+
+        if self.mode == 'pred':
+            self.edses = edses
+            self.sentences = sentences
+        else:
+            self.datapath = f'./data/raw/gnn_data_dgl_{self.mode}.csv'
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         super().__init__(name='eds')
     
 
     def process(self):
-        data_to_be_processed = pd.read_csv(self.datapath).reset_index()
-
-        num_of_data = len(data_to_be_processed)
         self.graphs = []
+        if self.mode != 'pred':
+            data_to_be_processed = pd.read_csv(self.datapath).reset_index()
+
+            num_of_data = len(data_to_be_processed)
+        
 
         print('Processing data...')
         if self.mode == 'train':
@@ -43,6 +48,10 @@ class EdsDataset(DGLDataset):
             with open('./data/edge_label_dict.json', 'r') as f:
                 self.edge_dict = json.load(f)
                 f.close()
+        
+        if self.mode == 'pred':
+            self._process_pred()
+            return
         
         edses = []
         sentences = []
@@ -126,9 +135,10 @@ class EdsDataset(DGLDataset):
             label_dict[self.unknown_label] = len(label_dict)
 
         print('Number of node labels: ', len(label_dict))
-        with open('./data/node_label_dict.json', 'w') as f:
-            f.write(json.dumps(label_dict, indent=2))
-            f.close()
+        if self.mode == 'train':
+            with open('./data/node_label_dict.json', 'w') as f:
+                f.write(json.dumps(label_dict, indent=2))
+                f.close()
         return label_dict
     
     def _build_edge_label_dict(self, edge_labels):
@@ -141,11 +151,12 @@ class EdsDataset(DGLDataset):
         
         if self.unknown_label not in label_dict:
             label_dict[self.unknown_label] = len(label_dict)
-        
         print('Number of edge labels: ', len(label_dict))
-        with open('./data/edge_label_dict.json', 'w') as f:
-            f.write(json.dumps(label_dict, indent=2))
-            f.close()
+        
+        if self.mode == 'train':
+            with open('./data/edge_label_dict.json', 'w') as f:
+                f.write(json.dumps(label_dict, indent=2))
+                f.close()
         return label_dict
     
     def _build_node_dict(self, nodes):
@@ -200,4 +211,43 @@ class EdsDataset(DGLDataset):
             return self.edge_dict[label]
         else:
             return self.edge_dict[self.unknown_label]
+    
+    def _process_pred(self):
+        all_graph_node_feature = Featureriser.bert_featurerise(self.edses, self.sentences)
+        
+        
+        for index, (eds, sent) in tqdm(enumerate(zip(self.edses, self.sentences)), total=len(self.edses)):
+            
+            node_id_to_idx_dict = self._build_node_dict(eds.nodes)
+            target_nodes = [x.id for x in eds.nodes if '_v' in x.predicate]
+            for target_node in target_nodes:
+                out_edges = [x.edges for x in eds.nodes if x.id == target_node][0]
+                edge_targets = [b for a, b in out_edges.items() if 'ARG' in a]
+           
+                node_features_dict = all_graph_node_feature[index]
+                nodes_embeds = []
+                for n in eds.nodes:
+                    nodes_embeds.append(node_features_dict[n.id])
+                node_features = torch.cat(nodes_embeds) # node features
+            
+                verb_mask = [False if not target_node == x else True for x in node_id_to_idx_dict.keys()]
+            
+            
+                arg_mask = [False if not x in edge_targets else True for x in node_id_to_idx_dict.keys()]
+          
+                edges_src, edges_tgt = self._eds_to_graph(eds, node_id_to_idx_dict)
+
+
+                graph = dgl.graph((edges_src, edges_tgt), num_nodes=len(eds.nodes)).to(self.device)
+                graph.ndata['feat'] = node_features
+
+                graph.ndata['verb_num_children'] = torch.tensor(sum(arg_mask)).repeat(len(node_id_to_idx_dict)).to(self.device)
+
+                graph.ndata['verb_mask'] = torch.tensor(verb_mask).to(self.device)
+                graph.ndata['edge_mask'] = torch.tensor(arg_mask).to(self.device)
+                
+                graph = dgl.add_reverse_edges(graph)
+                graph = dgl.add_self_loop(graph)
+                self.graphs.append(graph)
+        
 

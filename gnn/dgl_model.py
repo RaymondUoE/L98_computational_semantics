@@ -1,4 +1,3 @@
-import dgl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -100,21 +99,29 @@ class NodeLevelGNN(pl.LightningModule):
                     v_stack.append(v.unsqueeze(0).repeat(num,1))
             v_stack_emb = torch.cat(v_stack, dim=0).to(self.device)
             arg_class = self.edge_classify(v_stack_emb, arg_embed)
-            batched_edge_labels = batched_graph.ndata['edge_label'][batched_arg_mask]
+            if mode != 'pred':
+                batched_edge_labels = batched_graph.ndata['edge_label'][batched_arg_mask]
 
         verb_class = self.verb_classify(verb_embed)
-        batched_verb_labels = batched_graph.ndata['verb_label'][batched_verb_mask]
+        if mode != 'pred':
+            batched_verb_labels = batched_graph.ndata['verb_label'][batched_verb_mask]
 
-        loss_verb = self.loss_module(verb_class, batched_verb_labels)
-        loss_edge = self.loss_module(arg_class, batched_edge_labels) if need_edge_classify else 0
-        loss = loss_verb + loss_edge
-        return {'loss':loss,
-                'verb_class': verb_class,
-                'arg_class':arg_class if need_edge_classify else None,
-                'batched_verb_labels':batched_verb_labels,
-                'batched_edge_labels':batched_edge_labels if need_edge_classify else None,
-                'need_edge_classify':need_edge_classify
-                }
+            loss_verb = self.loss_module(verb_class, batched_verb_labels)
+            loss_edge = self.loss_module(arg_class, batched_edge_labels) if need_edge_classify else 0
+            loss = loss_verb + loss_edge
+            return {'loss':loss,
+                    'verb_class': verb_class,
+                    'arg_class':arg_class if need_edge_classify else None,
+                    'batched_verb_labels':batched_verb_labels,
+                    'batched_edge_labels':batched_edge_labels if need_edge_classify else None,
+                    'need_edge_classify':need_edge_classify
+                    }
+        else:
+            return {
+                    'verb_class': verb_class,
+                    'arg_class':arg_class if need_edge_classify else None,
+                    'need_edge_classify':need_edge_classify
+                    }
              
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters(), lr=1e-3)
@@ -188,18 +195,13 @@ class NodeLevelGNN(pl.LightningModule):
         self.test_acc.reset()
     
     def predict_step(self, batch, batch_idx):
-        result = self.forward(batch)
-        loss = result['loss']
+        result = self.forward(batch, mode='pred')
         verb_class = result['verb_class']
         arg_class = result['arg_class']
-        batched_verb_labels = result['batched_verb_labels']
-        batched_edge_labels = result['batched_edge_labels']
         need_edge_classify = result['need_edge_classify']
         verb_pred = verb_class.argmax(dim=-1)
         if need_edge_classify:
             edge_pred = arg_class.argmax(dim=-1)
-            self.pred_acc.update(edge_pred, batched_edge_labels)
-        self.pred_acc.update(verb_pred, batched_verb_labels)
         return {'verb_pred': verb_pred,
                 'edge_pred': edge_pred if need_edge_classify else None,
                 'need_edge_classify': need_edge_classify}

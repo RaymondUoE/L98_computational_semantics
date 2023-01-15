@@ -10,3 +10,5 @@ gnn/data
 */__pycache__
 .ipynb_checkpoints
 */model
+lightning_logs
+*.ipynb
